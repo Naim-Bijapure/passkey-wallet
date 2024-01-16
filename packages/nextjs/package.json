@@ -22,6 +22,8 @@
     "@simplewebauthn/typescript-types": "^8.3.4",
     "@uniswap/sdk-core": "^4.0.1",
     "@uniswap/v2-sdk": "^3.0.1",
+    "@upstash/redis": "^1.28.1",
+    "axios": "^1.6.5",
     "blo": "^1.0.1",
     "daisyui": "^4.4.19",
     "next": "^14.0.4",

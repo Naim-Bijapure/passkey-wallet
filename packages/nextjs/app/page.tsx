@@ -1,178 +1,163 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
-import {
-  GenerateAuthenticationOptionsOpts,
-  GenerateRegistrationOptionsOpts,
-  VerifyRegistrationResponseOpts,
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  verifyRegistrationResponse,
-} from "@simplewebauthn/server";
+import axios from "axios";
 import type { NextPage } from "next";
-import { useLocalStorage } from "usehooks-ts";
-import { loadBurnerSK } from "~~/hooks/scaffold-eth";
+import { useAccount } from "wagmi";
+import { Address } from "~~/components/scaffold-eth";
+import { loadBurnerSK, saveBurnerSK } from "~~/hooks/scaffold-eth";
+import { notification } from "~~/utils/scaffold-eth";
 
 const Home: NextPage = () => {
-  // const { address } = useAccount();
+  const { address } = useAccount();
 
-  const [verifiedRegistration, setVerifiedRegistration] = useLocalStorage<any>("registerWebAuth", undefined);
+  // const [verifiedRegistration, setVerifiedRegistration] = useLocalStorage<any>("registerWebAuth", undefined);
   const [largeBlobKey, setLargeBlobKey] = useState<any>(undefined);
 
   const burnerPk = loadBurnerSK();
+
   const onRegister = async () => {
-    const opts: GenerateRegistrationOptionsOpts = {
-      rpName: "SimpleWebAuthn Example",
-      rpID: window.location.hostname,
-      userID: `test`,
-      userName: `test`,
-      timeout: 60000,
-      attestationType: "none",
-      authenticatorSelection: {
-        residentKey: "required",
-      },
-      /**
-       * Support the two most common algorithms: ES256, and RS256
-       */
-      supportedAlgorithmIDs: [-7, -257],
-    };
+    try {
+      const reqData = {
+        type: "register",
+        rpID: window.location.hostname,
+        userID: address,
+        userName: address,
+      };
+      const response = await axios.post("/api/generate-auth", { ...reqData });
+      const responseData = await response.data;
+      const { options } = responseData;
+      const authRegisterResponse = await startRegistration({
+        ...options,
+      });
+      // verify registration
+      const reqDataVerifyData = {
+        type: "register",
+        authResponse: authRegisterResponse,
+        expectedChallenge: options.challenge,
+        rpID: window.location.hostname,
+        expectedOrigin: window.location.origin,
+        address,
+      };
+      await axios.post("/api/verify-auth", { ...reqDataVerifyData });
+      // const responseVerifyData = await responseVerify.data;
+      // const { verification } = responseVerifyData;
 
-    // this option generation can be moved to server
-    const options = await generateRegistrationOptions(opts);
+      const encoder = new TextEncoder();
+      const reqDataWritePk = {
+        type: "auth",
+        rpID: window.location.hostname,
+        userID: address,
+        userName: address,
+        address,
+      };
 
-    const authRegisterResponse = await startRegistration({
-      ...options,
-      extensions: {
-        //@ts-ignore
-        largeBlob: {
-          support: "required",
+      // GET OPTIONS
+      const responseWritePk = await axios.post("/api/generate-auth", { ...reqDataWritePk });
+      const { options: optionsStorePk } = await responseWritePk.data;
+
+      // AUTHENTICATE
+      const resultPkStored = await startAuthentication({
+        ...optionsStorePk,
+        // add large blob private key
+        extensions: {
+          largeBlob: {
+            write: encoder.encode(burnerPk),
+          },
         },
-      },
-    });
-    const opts2: VerifyRegistrationResponseOpts = {
-      response: authRegisterResponse,
-      expectedChallenge: `${options.challenge}`,
-      expectedOrigin: window.location.origin,
-      expectedRPID: window.location.hostname,
-      requireUserVerification: true,
-    };
-    const verification = await verifyRegistrationResponse(opts2);
+      });
 
-    setVerifiedRegistration(verification as any);
-
-    // ---store the private key
-
-    const optsAuth: GenerateAuthenticationOptionsOpts = {
-      timeout: 60000,
-      userVerification: "required",
-      rpID: window.location.hostname,
-      allowCredentials: [
-        {
-          id: verification.registrationInfo?.credentialID as any,
-          type: "public-key",
-          transports: ["internal"],
-        },
-      ],
-    };
-    const encoder = new TextEncoder();
-
-    const optionsAuth = await generateAuthenticationOptions({
-      ...optsAuth,
-      //@ts-ignore
-      extensions: {
-        //@ts-ignore
-        largeBlob: {
-          write: encoder.encode(burnerPk),
-        },
-      },
-    });
-    await startAuthentication({
-      ...optionsAuth,
-    });
+      console.log("resultPkStored", resultPkStored);
+      // VERIFY
+      // setVerifiedRegistration(verification as any);
+      notification.success("Registration successful");
+    } catch (error) {
+      console.log("error register", error);
+    }
   };
 
   const onSign = async () => {
     try {
-      // const opts: GenerateAuthenticationOptionsOpts = {
-      //   timeout: 60000,
-      //   userVerification: "required",
-      //   rpID: window.location.hostname,
-      //   allowCredentials: [
-      //     {
-      //       id: verifiedRegistration.registrationInfo?.credentialID,
-      //       type: "public-key",
-      //       transports: ["internal"],
-      //     },
-      //   ],
-      // };
-      // const encoder = new TextEncoder();
-
-      // const options = await generateAuthenticationOptions({
-      //   ...opts,
-      //   //@ts-ignore
-      //   extensions: {
-      //     //@ts-ignore
-      //     largeBlob: {
-      //       write: encoder.encode("cool"),
-      //     },
-      //   },
-      // });
-      // const asseResp = await startAuthentication({
-      //   ...options,
-      // });
-      const opts: GenerateAuthenticationOptionsOpts = {
-        timeout: 60000,
-        userVerification: "required",
+      const reqData = {
+        type: "auth",
         rpID: window.location.hostname,
-        allowCredentials: [
-          {
-            id: new Uint8Array(Object.values(verifiedRegistration.registrationInfo?.credentialID)),
-            type: "public-key",
-            transports: ["internal"],
-          },
-        ],
-      };
-
-      const options2 = await generateAuthenticationOptions({
-        ...opts,
-        //@ts-ignore
+        userID: address,
+        userName: address,
         extensions: {
-          //@ts-ignore
           largeBlob: {
             read: true,
           },
         },
-      });
+        address,
+      };
+      const response = await axios.post("/api/generate-auth", { ...reqData });
+      const { options } = await response.data;
+      // Base64URL decode the challenge
+      // options.challenge = base64url.decode(options.challenge);
+
+      // // `allowCredentials` empty array invokes an account selector by discoverable credentials.
+      options.allowCredentials = [];
+
       const asseResp2 = await startAuthentication({
-        ...options2,
+        ...options,
+        mediation: "optional", // or "silent" or "required"
       });
+
+      // const asseResp2 = await navigator.credentials.get({
+      //   publicKey: options,
+      //   mediation: "optional",
+      // });
+
       const decoder = new TextDecoder("utf-8");
-      const blobPK = decoder.decode((asseResp2.clientExtensionResults as any)?.largeBlob.blob);
-      setLargeBlobKey(blobPK);
-    } catch (error) {}
+      if ((asseResp2?.clientExtensionResults as any)?.largeBlob?.blob) {
+        const blobPK = decoder.decode((asseResp2?.clientExtensionResults as any)?.largeBlob.blob);
+        setLargeBlobKey(blobPK);
+      } else {
+        notification.error("Large blob not supported");
+      }
+    } catch (error) {
+      console.log("on sign error", error);
+    }
   };
+
+  useEffect(() => {
+    if (largeBlobKey) {
+      saveBurnerSK(largeBlobKey);
+      if (window !== undefined) {
+        window.location.reload();
+      }
+    }
+  }, [largeBlobKey]);
 
   return (
     <>
       <div className="flex items-center flex-col flex-grow pt-10">
-        {verifiedRegistration === undefined && (
+        <div className="flex justify-between w-[50%]">
           <button className="btn btn-primary" onClick={onRegister}>
-            Register with passKey
+            Register
           </button>
-        )}
 
-        {verifiedRegistration !== undefined && (
           <button className="btn btn-primary" onClick={onSign}>
             Sign In
           </button>
-        )}
-        <div>Private key from large blob</div>
+        </div>
+
+        {/* CURRENT ACCOUNT CARD */}
+        <div className="flex flex-col items-center">
+          <span>You are currently singed in as</span>
+          <span>
+            <Address address={address} />
+          </span>
+        </div>
+
+        {/* <div>Private key from large blob</div>
+        <div className="text-warning">{isLargeBlobSupported === false && "Webauthn large blob not supported"}</div>
         <div className="mockup-code bg-primary-content">
           <pre data-prefix="$">
             <code>{largeBlobKey && largeBlobKey}</code>
           </pre>
-        </div>
+        </div> */}
       </div>
     </>
   );
