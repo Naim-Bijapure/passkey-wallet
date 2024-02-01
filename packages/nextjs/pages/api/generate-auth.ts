@@ -18,7 +18,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { type, rpID, userID, userName, extensions, address } = req.body;
+  const { type, rpID, userID, userName, extensions, address, isVerify, user } = req.body;
   if (type === GENERATE_TYPES.register) {
     const opts: GenerateRegistrationOptionsOpts = {
       rpName: "SimpleWebAuthn Example",
@@ -49,6 +49,8 @@ export default async function handler(req: any, res: any) {
 
   if (type === GENERATE_TYPES.auth) {
     const currentUser: any = isLocal ? UserData[address] : await redis.hget(TX_COLLECTION_NAME, address);
+    // const currentUser: any = isLocal ? UserData[user] : await redis.hget(TX_COLLECTION_NAME, user);
+    // const currentWallet = currentUser.find((wallet: any) => wallet.address === address);
 
     let allowCredentials: any = undefined;
 
@@ -64,7 +66,7 @@ export default async function handler(req: any, res: any) {
 
     const opts: GenerateAuthenticationOptionsOpts = {
       timeout: 60000,
-      userVerification: "required",
+      userVerification: isVerify ? "required" : "preferred",
       rpID,
       extensions,
       allowCredentials,

@@ -20,7 +20,7 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
-  const { type, rpID, authResponse, expectedChallenge, expectedOrigin, authenticator, address } = req.body;
+  const { type, rpID, authResponse, expectedChallenge, expectedOrigin, authenticator, address, user } = req.body;
   if (type === VERIFY_TYPES.register) {
     //   const expectedChallenge = req.session.currentChallenge;
 
@@ -43,8 +43,22 @@ export default async function handler(req: any, res: any) {
       };
       if (isLocal) {
         UserData[address] = { ...newDevice, address };
+
+        // if (UserData[user]) {
+        //   UserData[user].push({ ...newDevice, address });
+        // } else {
+        //   UserData[user] = [{ ...newDevice, address }];
+        // }
       } else {
         await redis.hset(TX_COLLECTION_NAME, { [address]: { ...newDevice, address } });
+
+        // let currentUser: any = await redis.hget(TX_COLLECTION_NAME, user);
+        // if (currentUser !== null) {
+        //   currentUser.push({ ...newDevice, address });
+        // } else {
+        //   currentUser = [{ ...newDevice, address }];
+        // }
+        // await redis.hset(TX_COLLECTION_NAME, { [user]: currentUser });
       }
     }
 
@@ -54,10 +68,21 @@ export default async function handler(req: any, res: any) {
   if (type === VERIFY_TYPES.auth) {
     // const response: AuthenticationResponseJSON = authResponse;
 
-    authenticator.credentialPublicKey = new Uint8Array(Object.values(authenticator.credentialPublicKey));
-    authenticator.credentialID = new Uint8Array(Object.values(authenticator.credentialID));
+    const currentUser: any = isLocal ? UserData[address] : await redis.hget(TX_COLLECTION_NAME, address);
 
-    //     const currentUser = UserData.find(user => user.address === address);
+    // authenticator.credentialPublicKey = new Uint8Array(Object.values(authenticator.credentialPublicKey));
+    // authenticator.credentialID = new Uint8Array(Object.values(authenticator.credentialID));
+
+    // access from server stored data
+    const authenticator: any = {
+      ...currentUser,
+      credentialPublicKey: isLocal
+        ? new Uint8Array(currentUser.credentialPublicKey)
+        : new Uint8Array(Object.values(currentUser.credentialPublicKey)),
+      credentialID: isLocal
+        ? new Uint8Array(currentUser.credentialID)
+        : new Uint8Array(Object.values(currentUser.credentialID)),
+    };
 
     const opts: VerifyAuthenticationResponseOpts = {
       response: authResponse,

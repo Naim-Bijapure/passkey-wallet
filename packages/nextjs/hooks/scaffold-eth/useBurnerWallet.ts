@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocalStorage } from "usehooks-ts";
 import { Chain, Hex, HttpTransport, PrivateKeyAccount, createWalletClient, http } from "viem";
@@ -50,7 +52,7 @@ type BurnerAccount = {
   // creates a new burner account
   generateNewBurner: () => void;
   // explicitly save burner to storage
-  saveBurner: () => void;
+  saveBurner: (key: Hex) => void;
 };
 
 /**
@@ -58,17 +60,20 @@ type BurnerAccount = {
  */
 
 export const useBurnerWallet = (): BurnerAccount => {
-  const [burnerSk, setBurnerSk] = useLocalStorage<Hex>(burnerStorageKey, newDefaultPrivateKey);
-
+  const [burnerSk, setBurnerSk] = useLocalStorage<Hex>(burnerStorageKey, loadBurnerSK());
+  // const [burnerSk, setBurnerSk] = useLocalStorage<Hex>(burnerStorageKey, newDefaultPrivateKey);
   const publicClient = usePublicClient();
   const [walletClient, setWalletClient] = useState<WalletClient<HttpTransport, Chain, PrivateKeyAccount>>();
   const [generatedPrivateKey, setGeneratedPrivateKey] = useState<Hex>("0x");
   const [account, setAccount] = useState<PrivateKeyAccount>();
   const isCreatingNewBurnerRef = useRef(false);
 
-  const saveBurner = useCallback(() => {
-    setBurnerSk(generatedPrivateKey);
-  }, [setBurnerSk, generatedPrivateKey]);
+  const saveBurner = useCallback(
+    (key: Hex) => {
+      setBurnerSk(key ? key : generatedPrivateKey);
+    },
+    [setBurnerSk, generatedPrivateKey],
+  );
 
   const generateNewBurner = useCallback(() => {
     if (publicClient && !isCreatingNewBurnerRef.current) {
@@ -109,7 +114,6 @@ export const useBurnerWallet = (): BurnerAccount => {
       let wallet: WalletClient<HttpTransport, Chain, PrivateKeyAccount> | undefined = undefined;
       if (isValidSk(burnerSk)) {
         const randomAccount = privateKeyToAccount(burnerSk);
-
         wallet = createWalletClient({
           chain: publicClient.chain,
           account: randomAccount,
@@ -118,6 +122,8 @@ export const useBurnerWallet = (): BurnerAccount => {
 
         setGeneratedPrivateKey(burnerSk);
         setAccount(randomAccount);
+
+        setBurnerSk(burnerSk);
       } else {
         wallet = generateNewBurner();
       }
@@ -127,7 +133,7 @@ export const useBurnerWallet = (): BurnerAccount => {
       }
 
       setWalletClient(wallet);
-      saveBurner();
+      // saveBurner();
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
