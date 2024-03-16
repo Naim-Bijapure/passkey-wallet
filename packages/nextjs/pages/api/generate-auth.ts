@@ -74,6 +74,6 @@ export default async function handler(req: any, res: any) {
 
     const options = await generateAuthenticationOptions(opts);
 
-    res.status(200).json({ text: "auth", options });
+    res.status(200).json({ text: "auth", options, currentUser });
   }
 }

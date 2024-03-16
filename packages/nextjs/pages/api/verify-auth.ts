@@ -42,7 +42,7 @@ export default async function handler(req: any, res: any) {
         transports: authResponse.response.transports,
       };
       if (isLocal) {
-        UserData[address] = { ...newDevice, address };
+        UserData[address] = { ...newDevice, address, publicKey: authResponse.response.publicKey };
 
         // if (UserData[user]) {
         //   UserData[user].push({ ...newDevice, address });
@@ -50,7 +50,9 @@ export default async function handler(req: any, res: any) {
         //   UserData[user] = [{ ...newDevice, address }];
         // }
       } else {
-        await redis.hset(TX_COLLECTION_NAME, { [address]: { ...newDevice, address } });
+        await redis.hset(TX_COLLECTION_NAME, {
+          [address]: { ...newDevice, address, publicKey: authResponse.response.publicKey, user },
+        });
 
         // let currentUser: any = await redis.hget(TX_COLLECTION_NAME, user);
         // if (currentUser !== null) {
@@ -94,6 +96,6 @@ export default async function handler(req: any, res: any) {
     };
     const verification: VerifiedAuthenticationResponse = await verifyAuthenticationResponse(opts);
 
-    res.status(200).json({ text: "auth", verification });
+    res.status(200).json({ text: "auth", verification, publicKey: currentUser.publicKey });
   }
 }

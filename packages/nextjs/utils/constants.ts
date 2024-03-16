@@ -1,14 +1,14 @@
 import { Redis } from "@upstash/redis";
 
 export const DB_TYPE = "passKeyUsers";
-export const isLocal = true;
+export const isLocal = false;
 
 export const redis = new Redis({
   url: process.env.UPSTASH_URL as string,
   token: process.env.UPSTASH_TOKEN as string,
 });
 
-export const TX_COLLECTION_NAME = "passKeyData_v2";
+export const TX_COLLECTION_NAME = "passKeyData_v3";
 
 // const MOCK_WALLET = [
 //   {
